@@ -1,47 +1,62 @@
 package com.example.wtf2;
 
+import android.animation.ValueAnimator;
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentPagerAdapter;
-import androidx.recyclerview.widget.GridLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
-import androidx.viewpager.widget.ViewPager;
-
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
-import com.google.android.material.tabs.TabLayout;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
+    private Button notesTab;
+    private Button foldersTab;
+    private View toggleIndicator;
+    private EditText searchInput;
+    private ImageButton filterButton;
+    private ImageButton menuButton;
+    private static final int TAB_NOTES = 0;
+    private static final int TAB_FOLDERS = 1;
+    private int currentTab = TAB_NOTES;
+    private ExecutorService executorService;
+    private Handler mainHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main); // Устанавливаем макет главной активности
+        setContentView(R.layout.activity_main);
 
-        // Инициализация кнопки "Добавить"
+        // Инициализация элементов интерфейса
         FloatingActionButton fab = findViewById(R.id.add_btn);
+        notesTab = findViewById(R.id.notesTab);
+        foldersTab = findViewById(R.id.foldersTab);
+        toggleIndicator = findViewById(R.id.toggleIndicator);
+        searchInput = findViewById(R.id.searchInput);
+        filterButton = findViewById(R.id.imageButton);
+        menuButton = findViewById(R.id.menuButton);
 
-        // Получаем TabLayout
-        TabLayout tabLayout = findViewById(R.id.tabs);
-        View searchView = findViewById(R.id.search);
-        View filterButton = findViewById(R.id.imageButton);
+        executorService = Executors.newSingleThreadExecutor();
+        mainHandler = new Handler(Looper.getMainLooper());
 
-        // ✅ Загружаем NotesListFragment при первом запуске
+        // Начальная загрузка фрагмента "Все"
         if (savedInstanceState == null) {
             getSupportFragmentManager()
                     .beginTransaction()
@@ -49,54 +64,140 @@ public class MainActivity extends AppCompatActivity {
                     .commit();
         }
 
-        // Устанавливаем обработчик нажатия на кнопку
+        // Обработчик кнопки FAB
         fab.setOnClickListener(v -> {
-            int selectedTabPosition = tabLayout.getSelectedTabPosition(); // Получаем индекс текущей вкладки
-
-            if (selectedTabPosition == 0) { // Если выбрана первая вкладка ("Все")
+            if (currentTab == TAB_NOTES) {
                 Intent intent = new Intent(MainActivity.this, NoteEditor.class);
                 startActivity(intent);
-            } else if (selectedTabPosition == 1) { // Если выбрана вторая вкладка ("Папки")
-                showPopupDialog(); // Вызываем метод для отображения всплывающего окна
+            } else if (currentTab == TAB_FOLDERS) {
+                showPopupDialog();
             }
         });
 
-        //ОТЛАДКА
-//        if (savedInstanceState == null) {
-//            getSupportFragmentManager()
-//                    .beginTransaction()
-//                    .replace(R.id.fragment_container, new NotesListFragment()) // 👈 Загружаем фрагмент "Все"
-//                    .commit();
-//        }
-
-
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                Fragment selectedFragment;
-                if (tab.getPosition() == 1) { // "Папки"
-                    selectedFragment = new FoldersListFragment();
-                    searchView.setVisibility(View.GONE);
-                    filterButton.setVisibility(View.GONE);
-                } else {
-                    selectedFragment = new NotesListFragment();
-                    searchView.setVisibility(View.VISIBLE);
-                    filterButton.setVisibility(View.VISIBLE);
-                }
-                getSupportFragmentManager()
-                        .beginTransaction()
-                        .replace(R.id.fragment_container, selectedFragment)
-                        .commit();
+        // Обработчики переключения вкладок
+        notesTab.setOnClickListener(v -> {
+            if (currentTab != TAB_NOTES) {
+                switchTab(TAB_NOTES);
             }
-
-            @Override public void onTabUnselected(TabLayout.Tab tab) {}
-            @Override public void onTabReselected(TabLayout.Tab tab) {}
         });
 
+        foldersTab.setOnClickListener(v -> {
+            if (currentTab != TAB_FOLDERS) {
+                switchTab(TAB_FOLDERS);
+            }
+        });
 
+        // Инициализация переключателя
+        updateTabSelection(TAB_NOTES);
+        animateToggle(TAB_NOTES);
+
+        // Настройка поиска
+        setupSearch();
+
+        // Обработчик кнопки меню
+        menuButton.setOnClickListener(v -> Toast.makeText(this, "Menu clicked", Toast.LENGTH_SHORT).show());
     }
 
-    // Метод для отображения всплывающего окна добавления папки
+    private void switchTab(int tab) {
+        currentTab = tab;
+        Fragment selectedFragment = (tab == TAB_NOTES) ? new NotesListFragment() : new FoldersListFragment();
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragment_container, selectedFragment)
+                .commit();
+        animateToggle(tab);
+        updateToolbarButtonsVisibility();
+    }
+
+    private void animateToggle(int selectedTab) {
+        int startX = selectedTab == TAB_NOTES ? foldersTab.getWidth() : 0;
+        int endX = selectedTab == TAB_NOTES ? 0 : foldersTab.getWidth();
+        ValueAnimator animator = ValueAnimator.ofInt(startX, endX);
+        animator.setDuration(200);
+        animator.addUpdateListener(animation -> {
+            int value = (int) animation.getAnimatedValue();
+            toggleIndicator.setTranslationX(value);
+        });
+        animator.start();
+        updateTabSelection(selectedTab);
+    }
+
+    private void updateTabSelection(int selectedTab) {
+        notesTab.setSelected(selectedTab == TAB_NOTES);
+        foldersTab.setSelected(selectedTab == TAB_FOLDERS);
+    }
+
+    private void setupSearch() {
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().toLowerCase();
+                NotesListFragment notesFragment = (NotesListFragment) getSupportFragmentManager()
+                        .findFragmentById(R.id.fragment_container);
+                if (notesFragment != null && currentTab == TAB_NOTES) {
+                    notesFragment.filterNotes(query);
+                }
+                if (s.length() > 0) {
+                    Drawable drawable = getResources().getDrawable(R.drawable.ic_clear_modern, null);
+                    int size = dpToPx(8);
+                    drawable.setBounds(0, 0, size, size);
+                    searchInput.setCompoundDrawablesWithIntrinsicBounds(null, null, drawable, null);
+                    searchInput.setCompoundDrawablePadding(dpToPx(8));
+                } else {
+                    searchInput.setCompoundDrawablesWithIntrinsicBounds(null, null, null, null);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        searchInput.setOnTouchListener((v, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                Drawable drawable = searchInput.getCompoundDrawables()[2];
+                if (drawable != null && event.getRawX() >= (searchInput.getRight() - drawable.getBounds().width() - dpToPx(8))) {
+                    searchInput.setText("");
+                    return true;
+                }
+            }
+            return false;
+        });
+
+        filterButton.setOnClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle("Sort Notes")
+                    .setItems(new String[]{
+                            "Date Created (Asc)", "Date Created (Desc)",
+                            "Date Modified (Asc)", "Date Modified (Desc)",
+                            "Title (Asc)", "Title (Desc)"
+                    }, (dialog, which) -> {
+                        NotesListFragment notesFragment = (NotesListFragment) getSupportFragmentManager()
+                                .findFragmentById(R.id.fragment_container);
+                        if (notesFragment != null && currentTab == TAB_NOTES) {
+                            notesFragment.sortNotes(which);
+                        }
+                    })
+                    .show();
+        });
+    }
+
+    private void updateToolbarButtonsVisibility() {
+        if (currentTab == TAB_FOLDERS) {
+            searchInput.setVisibility(View.GONE);
+            filterButton.setVisibility(View.GONE);
+        } else {
+            searchInput.setVisibility(View.VISIBLE);
+            filterButton.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private int dpToPx(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
     private void showPopupDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Создать новую папку");
@@ -111,16 +212,11 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Название не может быть пустым", Toast.LENGTH_SHORT).show();
                 return;
             }
-            Log.d("DEBUG", "Добавляем папку: " + folderName); // ✅ Проверяем, вызывается ли метод
-
-            // ✅ Получаем FoldersFragment через FragmentManager
             FoldersListFragment foldersFragment = (FoldersListFragment) getSupportFragmentManager()
                     .findFragmentById(R.id.fragment_container);
-
             if (foldersFragment != null) {
                 foldersFragment.addNewFolder(folderName);
-            }else {
-                Log.e("DEBUG", "FoldersFragment == null! Переключаем вкладку вручную.");
+            } else {
                 switchToFoldersListFragment(folderName);
             }
         });
@@ -130,21 +226,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void switchToFoldersListFragment(String folderName) {
-        TabLayout tabLayout = findViewById(R.id.tabs);
-        tabLayout.getTabAt(1).select(); // ✅ Переключаемся на вкладку "Папки"
+        currentTab = TAB_FOLDERS;
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.fragment_container, new FoldersListFragment())
+                .commit();
+        animateToggle(TAB_FOLDERS);
+        updateToolbarButtonsVisibility();
 
         new Handler().postDelayed(() -> {
             FoldersListFragment foldersFragment = (FoldersListFragment) getSupportFragmentManager()
                     .findFragmentById(R.id.fragment_container);
             if (foldersFragment != null) {
                 foldersFragment.addNewFolder(folderName);
-            } else {
-                Log.e("DEBUG", "Ошибка: FoldersFragment всё ещё null после переключения!");
             }
-        }, 300); // ✅ Ждём 300 мс, чтобы фрагмент успел загрузиться
+        }, 300);
     }
-
-
-
-
 }

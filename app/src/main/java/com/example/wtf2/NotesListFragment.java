@@ -15,6 +15,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class NotesListFragment extends Fragment {
 
@@ -34,9 +35,11 @@ public class NotesListFragment extends Fragment {
 
         notesList = new ArrayList<>();
         notesAdapter = new NoteAdapter(notesList);
-        recyclerView.setAdapter(notesAdapter); // ✅ Устанавливаем адаптер перед загрузкой
+        recyclerView.setAdapter(notesAdapter);
 
-        /// Получаем имя папки из аргументов
+        db = AppDatabase.getInstance(getContext()); // Инициализируем базу данных
+
+        // Получаем имя папки из аргументов
         selectedFolder = getArguments() != null ? getArguments().getString("folder_name") : null;
 
         // Загружаем заметки (по папке или все)
@@ -48,7 +51,7 @@ public class NotesListFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        reloadNotes(); // ✅ Загружаем заметки после возврата во фрагмент
+        reloadNotes();
     }
 
     /**
@@ -66,28 +69,100 @@ public class NotesListFragment extends Fragment {
 
     private void loadAllNotes() {
         Executors.newSingleThreadExecutor().execute(() -> {
-            List<Note> notes = AppDatabase.getInstance(getContext()).noteDao().getAllNotes();
+            List<Note> notes = db.noteDao().getAllNotes();
             Log.d("DEBUG", "Заметок в базе: " + notes.size());
 
-            getActivity().runOnUiThread(() -> {
-                notesList.clear();
-                notesList.addAll(notes);
-                notesAdapter.notifyDataSetChanged();
-            });
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    notesList.clear();
+                    notesList.addAll(notes);
+                    notesAdapter.notifyDataSetChanged();
+                });
+            }
         });
     }
 
     private void loadNotesByFolder(String folderName) {
         Executors.newSingleThreadExecutor().execute(() -> {
-            List<Note> notes = AppDatabase.getInstance(getContext()).noteDao().getNotesByFolder(folderName);
+            List<Note> notes = db.noteDao().getNotesByFolder(folderName);
             Log.d("DEBUG", "Заметок в папке '" + folderName + "': " + notes.size());
 
-            getActivity().runOnUiThread(() -> {
-                notesList.clear();
-                notesList.addAll(notes);
-                notesAdapter.notifyDataSetChanged();
-            });
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    notesList.clear();
+                    notesList.addAll(notes);
+                    notesAdapter.notifyDataSetChanged();
+                });
+            }
         });
     }
-    
+
+    // Метод для фильтрации заметок по запросу
+    public void filterNotes(String query) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            List<Note> filteredNotes;
+            if (selectedFolder != null) {
+                // Если выбрана папка, фильтруем только внутри нее
+                filteredNotes = db.noteDao().searchNotes("%" + query + "%").stream()
+                        .filter(note -> note.getFolder().equals(selectedFolder))
+                        .collect(Collectors.toList());
+            } else {
+                // Иначе ищем по всем заметкам
+                filteredNotes = db.noteDao().searchNotes("%" + query + "%");
+            }
+
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    notesList.clear();
+                    notesList.addAll(filteredNotes);
+                    notesAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
+
+    // Метод для сортировки заметок
+    public void sortNotes(int which) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            List<Note> sortedNotes;
+            NoteDao noteDao = db.noteDao();
+            if (selectedFolder != null) {
+                // Если выбрана папка, сортируем только ее заметки
+                sortedNotes = noteDao.getNotesByFolder(selectedFolder);
+            } else {
+                // Иначе сортируем все заметки
+                sortedNotes = noteDao.getAllNotes();
+            }
+
+            switch (which) {
+                case 0: // Date Created (Asc)
+                    sortedNotes = noteDao.getAllNotesSortedByCreatedAsc();
+                    break;
+                case 1: // Date Created (Desc)
+                    sortedNotes = noteDao.getAllNotesSortedByCreatedDesc();
+                    break;
+                case 2: // Date Modified (Asc)
+                    sortedNotes = noteDao.getAllNotesSortedByCreatedAsc(); // Предполагаю, что date — это modified
+                    break;
+                case 3: // Date Modified (Desc)
+                    sortedNotes = noteDao.getAllNotesSortedByCreatedDesc(); // Предполагаю, что date — это modified
+                    break;
+                case 4: // Title (Asc)
+                    sortedNotes = noteDao.getAllNotesSortedByTitleAsc();
+                    break;
+                case 5: // Title (Desc)
+                    sortedNotes = noteDao.getAllNotesSortedByTitleDesc();
+                    break;
+            }
+
+            if (getActivity() != null) {
+                List<Note> finalSortedNotes = sortedNotes;
+                getActivity().runOnUiThread(() -> {
+                    notesList.clear();
+                    notesList.addAll(finalSortedNotes);
+                    notesAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
 }
