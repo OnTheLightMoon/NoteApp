@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Верхняя панель с кнопками "назад" и "сохранить" -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <!-- Кнопка назад -->
+        <ImageButton
+            android:id="@+id/back_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Назад"
+            android:src="@android:drawable/ic_menu_revert"
+            tools:ignore="TouchTargetSizeCheck" />
+
+        <!-- Кнопка сохранить -->
+        <ImageButton
+
+            android:id="@+id/save_note_btn"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="right"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Сохранить"
+            android:src="@android:drawable/ic_menu_save"
+            tools:ignore="TouchTargetSizeCheck" />
+    </LinearLayout>
+
+    <!-- Поле для ввода заголовка заметки -->
+    <EditText
+        android:id="@+id/note_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Введите заголовок"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        tools:ignore="TouchTargetSizeCheck" />
+
+    <!-- Поле для отображения даты создания/редактирования -->
+    <TextView
+        android:id="@+id/note_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Дата: "
+        android:textSize="14sp"
+        android:paddingTop="4dp" />
+
+    <!-- Поле для ввода текста заметки -->
+    <EditText
+        android:id="@+id/note_content"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:hint="Введите текст заметки"
+        android:textSize="16sp"
+        android:gravity="top"
+        android:inputType="textMultiLine"
+        android:minLines="5" />
+
+    <!-- Поле для отображения статистики (символы, слова, строки) -->
+    <TextView
+        android:id="@+id/note_statistics"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Символов: 0, Слов: 0, Строк: 0"
+        android:textSize="14sp"
+        android:paddingTop="4dp" />
+
+    <!-- Меню для выбора папки -->
+    <Spinner
+        android:id="@+id/folder_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:paddingTop="8dp"
+        android:spinnerMode="dropdown" />
+</LinearLayout>
