@@ -14,10 +14,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
 
-public class FoldersListFragment extends Fragment implements FolderAdapter.OnFolderClickListener {
+public class FoldersListFragment extends Fragment {
 
     private RecyclerView recyclerView;
     private FolderAdapter folderAdapter;
@@ -33,94 +34,87 @@ public class FoldersListFragment extends Fragment implements FolderAdapter.OnFol
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         folderList = new ArrayList<>();
-        folderAdapter = new FolderAdapter(folderList, this);
-        recyclerView.setAdapter(folderAdapter); // ✅ Устанавливаем адаптер перед загрузкой
+        folderAdapter = new FolderAdapter(folderList, new FolderAdapter.OnFolderClickListener() {
+            @Override
+            public void onFolderClick(Folder folder) {
+                Bundle bundle = new Bundle();
+                bundle.putString("folder_name", folder.getName());
+                NotesListFragment notesFragment = new NotesListFragment();
+                notesFragment.setArguments(bundle);
+                getParentFragmentManager()
+                        .beginTransaction()
+                        .replace(R.id.fragment_container, notesFragment)
+                        .addToBackStack(null)
+                        .commit();
+            }
+
+            @Override
+            public void onFolderLongClick(Folder folder) {
+                startSelectionMode();
+                folderAdapter.toggleSelection(folder);
+                updateSelectionCount();
+            }
+
+            @Override
+            public void onSelectionChanged() {
+                updateSelectionCount();
+            }
+        });
+        recyclerView.setAdapter(folderAdapter);
 
         db = AppDatabase.getInstance(getContext());
-
-        //ОТЛАДКА
-        if (recyclerView == null) {
-            Log.e("DEBUG", "RecyclerView в FoldersFragment == null!");
-        } else {
-            Log.d("DEBUG", "RecyclerView в FoldersFragment найден!");
-        }
-
+        loadFolders();
 
         return view;
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        loadFolders(); // ✅ Загружаем папки после возврата во фрагмент
-    }
-
-    /**
-     * Загружает список папок из базы данных.
-     */
-    private void loadFolders() {
-        Executors.newSingleThreadExecutor().execute(() -> { // ✅ Запускаем в фоновом потоке (Room требует этого)
-            List<Folder> folders = db.folderDao().getAllFolders();
-
-            Log.d("DEBUG", "Количество папок в базе: " + folders.size()); // ✅ Логируем количество папок
-            for (Folder folder : folders) {
-                Log.d("DEBUG", "Папка: " + folder.getId() + " - " + folder.getName()); // ✅ Проверяем ID и имя папки
-            }
-
-            getActivity().runOnUiThread(() -> { // ✅ Обновляем UI в главном потоке
-                folderList.clear();
-                folderList.addAll(folders);
-                folderAdapter.notifyDataSetChanged(); // ✅ Уведомляем адаптер об изменениях
-
-                Log.d("DEBUG", "Обновлено папок в списке: " + folderList.size()); // ✅ Логируем количество папок в UI
-            });
-        });
-    }
-
-
-    /**
-     * Добавляет новую папку в базу данных.
-     */
-    public void addNewFolder(String folderName) {
-        if (folderName.trim().isEmpty()) {
-            Toast.makeText(getContext(), "Название папки не может быть пустым", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        Log.d("DEBUG", "Перед вставкой папки: " + folderName);
-
+    public void loadFolders() { // Сделали публичным
         Executors.newSingleThreadExecutor().execute(() -> {
-            db.folderDao().insertFolder(folderName); // 🔥 Используем транзакцию
-            Log.d("DEBUG", "Папка успешно вставлена в Room: " + folderName);
-            getActivity().runOnUiThread(() -> {
-                loadFolders();
-                Log.d("DEBUG", "Вызван loadFolders() после вставки");
-            });
+            List<Folder> folders = db.folderDao().getAllFolders();
+            for (Folder folder : folders) {
+                int noteCount = db.folderDao().getNoteCountByFolder(folder.getName());
+                folder.setNoteCount(noteCount);
+            }
+            folders.sort(Comparator.comparing(Folder::isPinned).reversed()
+                    .thenComparing(Folder::getName));
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(() -> {
+                    folderList.clear();
+                    folderList.addAll(folders);
+                    folderAdapter.notifyDataSetChanged();
+                });
+            }
         });
     }
 
+    public void addNewFolder(String folderName, String color) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            Folder folder = new Folder(folderName);
+            folder.setColor(color);
+            db.folderDao().insertFolder(folder);
+            loadFolders();
+        });
+    }
 
-    /**
-     * При нажатии на папку открывается список заметок этой папки.
-     */
+    private void startSelectionMode() {
+        if (getActivity() instanceof MainActivity) {
+            folderAdapter.setSelectionMode(true);
+            ((MainActivity) getActivity()).enterSelectionMode(folderAdapter.getSelectedFolders().size());
+        }
+    }
 
-    @Override
-    public void onFolderClick(Folder folder) {
-        // Что делать, когда папка нажата
-        Log.d("DEBUG", "Открываем папку: " + folder.getName());
+    public void exitSelectionMode() {
+        folderAdapter.setSelectionMode(false);
+    }
 
-        // Открываем NotesListFragment и передаем имя папки
-        NotesListFragment notesListFragment = new NotesListFragment();
-        Bundle args = new Bundle();
-        args.putString("folder_name", folder.getName());
-        notesListFragment.setArguments(args);
+    private void updateSelectionCount() {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).updateSelectionCount(folderAdapter.getSelectedFolders().size());
+        }
+    }
 
-        // Переходим на экран с заметками из выбранной папки
-        getActivity().getSupportFragmentManager()
-                .beginTransaction()
-                .replace(R.id.fragment_container, notesListFragment)
-                .addToBackStack(null)
-                .commit();
+    // Геттер для доступа к адаптеру
+    public FolderAdapter getFolderAdapter() {
+        return folderAdapter;
     }
 }
-

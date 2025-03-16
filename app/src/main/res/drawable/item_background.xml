@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#C8E6C9" /> <!-- Светло-зелёный для выделения -->
+            <corners android:radius="8dp" />
+            <stroke android:width="2dp" android:color="#4CAF50" /> <!-- Тёмно-зелёная обводка -->
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFF" /> <!-- Белый фон -->
+            <corners android:radius="8dp" />
+            <stroke android:width="1dp" android:color="#E0E0E0" /> <!-- Лёгкая серая обводка -->
+        </shape>
+    </item>
+</selector>

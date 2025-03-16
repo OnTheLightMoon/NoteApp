@@ -9,11 +9,12 @@ import androidx.annotation.NonNull;
 import androidx.room.Database;
 import androidx.room.Room;
 import androidx.room.RoomDatabase;
+import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import java.util.concurrent.Executors;
 
-@Database(entities = {Note.class, Folder.class}, version = 12, exportSchema = false)
+@Database(entities = {Note.class, Folder.class}, version = 3, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static volatile AppDatabase INSTANCE;
 
@@ -27,7 +28,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                                     AppDatabase.class, "notes_database")
                             .fallbackToDestructiveMigration() // ✅ Удаляет старую базу и создаёт новую!
-                            .setJournalMode(JournalMode.TRUNCATE) // ✅ SQLite принудительно сохраняет изменения
+                            .setJournalMode(RoomDatabase.JournalMode.TRUNCATE) // ✅ SQLite принудительно сохраняет изменения
                             .addCallback(new RoomDatabase.Callback() {
                                 @Override
                                 public void onCreate(@NonNull SupportSQLiteDatabase db) {
@@ -40,17 +41,27 @@ public abstract class AppDatabase extends RoomDatabase {
                                     cursor.close();
                                     Executors.newSingleThreadExecutor().execute(() -> {
                                         AppDatabase database = getInstance(context);
-                                        database.folderDao().insertFolder("Неотсортированное");
+                                        Folder defaultFolder = new Folder("Неотсортированные"); // Создаём объект Folder
+                                        defaultFolder.setColor("#FFFFFF"); // Устанавливаем цвет по умолчанию
+                                        database.folderDao().insertFolder(defaultFolder); // Передаём объект Folder
                                         Log.d("DEBUG", "Папка 'Неотсортированное' добавлена при создании базы!");
                                     });
                                 }
                             })
-                            .fallbackToDestructiveMigration()
+                            .addMigrations(MIGRATION_2_3) // Добавляем миграцию
                             .build();
                 }
             }
         }
         return INSTANCE;
     }
+
+    static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase database) {
+            // Добавляем столбец isPinned в таблицы notes и folders
+            database.execSQL("ALTER TABLE folders ADD COLUMN color TEXT NOT NULL DEFAULT '#FFFFFF'");
+        }
+    };
 }
 

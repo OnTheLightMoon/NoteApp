@@ -5,6 +5,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -13,9 +14,9 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 public class NotesListFragment extends Fragment {
 
@@ -34,15 +35,31 @@ public class NotesListFragment extends Fragment {
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
 
         notesList = new ArrayList<>();
-        notesAdapter = new NoteAdapter(notesList);
+        notesAdapter = new NoteAdapter(notesList, new NoteAdapter.OnNoteClickListener() {
+            @Override
+            public void onNoteClick(Note note) {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).openNoteEditor(note);
+                }
+            }
+
+            @Override
+            public void onNoteLongClick(Note note) {
+                startSelectionMode();
+                notesAdapter.toggleSelection(note);
+                updateSelectionCount();
+            }
+
+            @Override
+            public void onSelectionChanged() {
+                updateSelectionCount();
+            }
+        });
         recyclerView.setAdapter(notesAdapter);
 
-        db = AppDatabase.getInstance(getContext()); // Инициализируем базу данных
+        db = AppDatabase.getInstance(getContext());
 
-        // Получаем имя папки из аргументов
         selectedFolder = getArguments() != null ? getArguments().getString("folder_name") : null;
-
-        // Загружаем заметки (по папке или все)
         reloadNotes();
 
         return view;
@@ -54,15 +71,10 @@ public class NotesListFragment extends Fragment {
         reloadNotes();
     }
 
-    /**
-     * Загружает заметки. Если выбрана папка, фильтруем по ней.
-     */
     private void reloadNotes() {
         if (selectedFolder != null) {
-            Log.d("DEBUG", "Загружаем заметки для папки: " + selectedFolder);
             loadNotesByFolder(selectedFolder);
         } else {
-            Log.d("DEBUG", "Загружаем все заметки");
             loadAllNotes();
         }
     }
@@ -70,6 +82,8 @@ public class NotesListFragment extends Fragment {
     private void loadAllNotes() {
         Executors.newSingleThreadExecutor().execute(() -> {
             List<Note> notes = db.noteDao().getAllNotes();
+            notes.sort(Comparator.comparing(Note::isPinned).reversed()
+                    .thenComparing(Note::getDate, Comparator.reverseOrder()));
             Log.d("DEBUG", "Заметок в базе: " + notes.size());
 
             if (getActivity() != null) {
@@ -85,6 +99,8 @@ public class NotesListFragment extends Fragment {
     private void loadNotesByFolder(String folderName) {
         Executors.newSingleThreadExecutor().execute(() -> {
             List<Note> notes = db.noteDao().getNotesByFolder(folderName);
+            notes.sort(Comparator.comparing(Note::isPinned).reversed()
+                    .thenComparing(Note::getDate, Comparator.reverseOrder()));
             Log.d("DEBUG", "Заметок в папке '" + folderName + "': " + notes.size());
 
             if (getActivity() != null) {
@@ -97,19 +113,21 @@ public class NotesListFragment extends Fragment {
         });
     }
 
-    // Метод для фильтрации заметок по запросу
     public void filterNotes(String query) {
         Executors.newSingleThreadExecutor().execute(() -> {
             List<Note> filteredNotes;
             if (selectedFolder != null) {
-                // Если выбрана папка, фильтруем только внутри нее
-                filteredNotes = db.noteDao().searchNotes("%" + query + "%").stream()
-                        .filter(note -> note.getFolder().equals(selectedFolder))
-                        .collect(Collectors.toList());
+                filteredNotes = new ArrayList<>();
+                for (Note note : db.noteDao().searchNotes("%" + query + "%")) {
+                    if (note.getFolder() != null && note.getFolder().equals(selectedFolder)) {
+                        filteredNotes.add(note);
+                    }
+                }
             } else {
-                // Иначе ищем по всем заметкам
                 filteredNotes = db.noteDao().searchNotes("%" + query + "%");
             }
+            filteredNotes.sort(Comparator.comparing(Note::isPinned).reversed()
+                    .thenComparing(Note::getDate, Comparator.reverseOrder()));
 
             if (getActivity() != null) {
                 getActivity().runOnUiThread(() -> {
@@ -121,48 +139,67 @@ public class NotesListFragment extends Fragment {
         });
     }
 
-    // Метод для сортировки заметок
     public void sortNotes(int which) {
         Executors.newSingleThreadExecutor().execute(() -> {
-            List<Note> sortedNotes;
-            NoteDao noteDao = db.noteDao();
-            if (selectedFolder != null) {
-                // Если выбрана папка, сортируем только ее заметки
-                sortedNotes = noteDao.getNotesByFolder(selectedFolder);
-            } else {
-                // Иначе сортируем все заметки
-                sortedNotes = noteDao.getAllNotes();
-            }
+            List<Note> sortedNotes = (selectedFolder != null)
+                    ? db.noteDao().getNotesByFolder(selectedFolder)
+                    : db.noteDao().getAllNotes();
+
+            Comparator<Note> baseComparator = Comparator.comparing(Note::isPinned).reversed();
+            Comparator<Note> finalComparator;
 
             switch (which) {
-                case 0: // Date Created (Asc)
-                    sortedNotes = noteDao.getAllNotesSortedByCreatedAsc();
+                case 0: // Date Modified Asc
+                    finalComparator = baseComparator.thenComparing(Note::getDate);
                     break;
-                case 1: // Date Created (Desc)
-                    sortedNotes = noteDao.getAllNotesSortedByCreatedDesc();
+                case 1: // Date Modified Desc
+                    finalComparator = baseComparator.thenComparing(Note::getDate, Comparator.reverseOrder());
                     break;
-                case 2: // Date Modified (Asc)
-                    sortedNotes = noteDao.getAllNotesSortedByCreatedAsc(); // Предполагаю, что date — это modified
+                case 2: // Title Asc
+                    finalComparator = baseComparator.thenComparing(Note::getTitle);
                     break;
-                case 3: // Date Modified (Desc)
-                    sortedNotes = noteDao.getAllNotesSortedByCreatedDesc(); // Предполагаю, что date — это modified
+                case 3: // Title Desc
+                    finalComparator = baseComparator.thenComparing(Note::getTitle, Comparator.reverseOrder());
                     break;
-                case 4: // Title (Asc)
-                    sortedNotes = noteDao.getAllNotesSortedByTitleAsc();
-                    break;
-                case 5: // Title (Desc)
-                    sortedNotes = noteDao.getAllNotesSortedByTitleDesc();
-                    break;
+                default:
+                    finalComparator = baseComparator.thenComparing(Note::getDate, Comparator.reverseOrder());
             }
 
+            sortedNotes.sort(finalComparator);
+
             if (getActivity() != null) {
-                List<Note> finalSortedNotes = sortedNotes;
                 getActivity().runOnUiThread(() -> {
                     notesList.clear();
-                    notesList.addAll(finalSortedNotes);
+                    notesList.addAll(sortedNotes);
                     notesAdapter.notifyDataSetChanged();
                 });
             }
         });
+    }
+
+    public void refreshNotes() {
+        reloadNotes();
+    }
+
+    private void startSelectionMode() {
+        if (getActivity() instanceof MainActivity) {
+            notesAdapter.setSelectionMode(true);
+            ((MainActivity) getActivity()).enterSelectionMode(notesAdapter.getSelectedNotes().size());
+        }
+    }
+
+    public void exitSelectionMode() {
+        notesAdapter.setSelectionMode(false);
+    }
+
+    private void updateSelectionCount() {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).updateSelectionCount(notesAdapter.getSelectedNotes().size());
+        }
+    }
+
+    // Геттер для доступа к адаптеру
+    public NoteAdapter getNotesAdapter() {
+        return notesAdapter;
     }
 }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true">
+        <shape>
+            <solid android:color="#E0F7FA" /> <!-- Цвет фона для выбранного элемента -->
+            <stroke android:width="2dp" android:color="#00ACC1" /> <!-- Обводка -->
+        </shape>
+    </item>
+    <item>
+        <shape>
+            <solid android:color="@android:color/transparent" /> <!-- Обычный фон -->
+        </shape>
+    </item>
+</selector>

@@ -1,6 +1,6 @@
 package com.example.wtf2;
 
-
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -14,7 +14,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -25,9 +27,12 @@ public class NoteEditor extends AppCompatActivity {
     private EditText noteTitle, noteContent;
     private TextView noteDate, noteStatistics;
     private Spinner folderSpinner;
-    private ImageButton saveNoteBtn, backButton;
-
+    private AppDatabase db;
+    private Note currentNote;
+    private List<String> folderNames;
+    private int noteId = -1; // Отдельное поле для ID
     private String currentDate;
+    private static final String DEFAULT_FOLDER = "Неотсортированные";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,8 +45,29 @@ public class NoteEditor extends AppCompatActivity {
         noteDate = findViewById(R.id.note_date);
         noteStatistics = findViewById(R.id.note_statistics);
         folderSpinner = findViewById(R.id.folder_spinner);
-        saveNoteBtn = findViewById(R.id.save_note_btn);
-        backButton = findViewById(R.id.back_button);
+        ImageButton backButton = findViewById(R.id.back_button);
+        ImageButton saveButton = findViewById(R.id.save_note_btn);
+
+        db = AppDatabase.getInstance(this);
+        folderNames = new ArrayList<>();
+
+        // Загружаем данные заметки из Intent, если они есть
+        Intent intent = getIntent();
+        if (intent.hasExtra("NOTE_ID")) {
+            noteId = intent.getIntExtra("NOTE_ID", -1);
+            String title = intent.getStringExtra("NOTE_TITLE");
+            String content = intent.getStringExtra("NOTE_CONTENT");
+            String date = intent.getStringExtra("NOTE_DATE");
+            String folder = intent.getStringExtra("NOTE_FOLDER");
+            currentNote = new Note(title, content, date, folder); // Используем конструктор
+
+            noteTitle.setText(currentNote.getTitle());
+            noteContent.setText(currentNote.getContent());
+            noteDate.setText("Дата: " + currentNote.getDate());
+        } else {
+            currentNote = null;
+            noteDate.setText("Дата: " + getCurrentDate());
+        }
 
         loadFolders();
 
@@ -64,11 +90,10 @@ public class NoteEditor extends AppCompatActivity {
         });
 
         // Кнопка сохранения заметки
-        saveNoteBtn.setOnClickListener(view -> saveNote());
+        saveButton.setOnClickListener(v -> saveNote());
 
         // Кнопка возврата
-        backButton.setOnClickListener(view -> finish());
-
+        backButton.setOnClickListener(v -> finish());
     }
 
     /**
@@ -91,51 +116,74 @@ public class NoteEditor extends AppCompatActivity {
     }
 
     /**
-     * Сохраняет заметку (здесь можно добавить логику для сохранения в БД)
+     * Сохраняет заметку
      */
     private void saveNote() {
         String title = noteTitle.getText().toString().trim();
         String content = noteContent.getText().toString().trim();
-        String folder = folderSpinner.getSelectedItem().toString(); // Получаем выбранную папку
+        String folder = folderSpinner.getSelectedItem() != null ? folderSpinner.getSelectedItem().toString() : DEFAULT_FOLDER;
 
-        if (title.isEmpty() && content.isEmpty()) {
-            finish(); // Если заметка пустая — просто закрываем
+        if (content.isEmpty() && title.isEmpty()) {
+            Toast.makeText(this, "Заметка не может быть пустой", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        Note note = new Note(title, content, currentDate, folder);
+        // Создаем объект Note вне лямбда-выражения
+        Note noteToSave;
+        if (currentNote == null) {
+            // Новая заметка
+            noteToSave = new Note(title, content, getCurrentDate(), folder); // Используем @Ignore конструктор
+        } else {
+            // Обновление существующей заметки
+            noteToSave = new Note(noteId, title, content, getCurrentDate(), folder, currentNote.isPinned()); // Полный конструктор
+        }
 
+        Executors.newSingleThreadExecutor().execute(() -> {
+            if (currentNote == null) {
+                db.noteDao().insert(noteToSave);
+            } else {
+                db.noteDao().update(noteToSave);
+            }
 
-        Executors.newSingleThreadExecutor().execute(() -> { // ✅ Выполняем в `background thread`
-            AppDatabase db = AppDatabase.getInstance(this);
-            db.noteDao().insert(note);
-            Log.d("DEBUG", "Заметка сохранена в папку: " + folder);
             runOnUiThread(() -> {
-                Toast.makeText(this, "Заметка сохранена!", Toast.LENGTH_SHORT).show();
-                finish(); // ✅ Закрываем `NoteEditor` после сохранения
+                Toast.makeText(this, "Заметка сохранена", Toast.LENGTH_SHORT).show();
+                setResult(RESULT_OK);
+                finish();
             });
         });
     }
-
-
 
     private void loadFolders() {
-        Executors.newSingleThreadExecutor().execute(() -> { // ✅ Запускаем в фоновом потоке
-            List<Folder> folders = AppDatabase.getInstance(this).folderDao().getAllFolders();
+        Executors.newSingleThreadExecutor().execute(() -> { // Запускаем в фоновом потоке
+            List<Folder> folders = db.folderDao().getAllFolders();
+            folderNames.clear();
+            // Не добавляем "Без папки", только реальные папки
+            for (Folder folder : folders) {
+                folderNames.add(folder.getName());
+            }
 
-            runOnUiThread(() -> { // ✅ Обновляем UI в главном потоке
-                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item);
-                for (Folder folder : folders) {
-                    adapter.add(folder.getName());
-                }
+            // Убеждаемся, что "Неотсортированные" есть в списке
+            if (!folderNames.contains(DEFAULT_FOLDER)) {
+                folderNames.add(DEFAULT_FOLDER);
+            }
+
+            runOnUiThread(() -> { // Обновляем UI в главном потоке
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, folderNames);
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                 folderSpinner.setAdapter(adapter);
-                Log.d("DEBUG", "Папки загружены в NoteEditor: " + folders.size());
+
+                // Устанавливаем текущую папку или "Неотсортированные" по умолчанию
+                if (currentNote != null && currentNote.getFolder() != null) {
+                    int position = folderNames.indexOf(currentNote.getFolder());
+                    if (position >= 0) {
+                        folderSpinner.setSelection(position);
+                    } else {
+                        folderSpinner.setSelection(folderNames.indexOf(DEFAULT_FOLDER));
+                    }
+                } else {
+                    folderSpinner.setSelection(folderNames.indexOf(DEFAULT_FOLDER));
+                }
             });
         });
     }
-
-
-
-
 }
-

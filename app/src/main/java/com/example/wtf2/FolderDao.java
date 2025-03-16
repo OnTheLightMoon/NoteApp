@@ -1,21 +1,29 @@
 package com.example.wtf2;
 
-import android.util.Log;
-
 import androidx.room.Dao;
 import androidx.room.Insert;
-import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
-import androidx.room.Transaction;
+import androidx.room.Update;
 
 import java.util.List;
 
 @Dao
 public interface FolderDao {
-    @Transaction // 🔥 Объединяем в транзакцию
-    @Query("INSERT INTO folders (name) VALUES (:name)")
-    void insertFolder(String name);
-
-    @Query("SELECT * FROM folders ORDER BY id ASC")
+    @Query("SELECT * FROM folders")
     List<Folder> getAllFolders();
+
+    @Insert
+    void insertFolder(Folder folder);
+
+    @Update
+    void update(Folder folder); // Новый метод для обновления
+
+    @Query("SELECT COUNT(*) FROM notes WHERE folder = :folderName")
+    int getNoteCountByFolder(String folderName);
+
+    @Query("UPDATE folders SET isPinned = :isPinned WHERE id IN (:ids)")
+    void updatePinnedStatus(List<Integer> ids, boolean isPinned);
+
+    @Query("DELETE FROM folders WHERE id IN (:ids)")
+    void deleteFolders(List<Integer> ids);
 }

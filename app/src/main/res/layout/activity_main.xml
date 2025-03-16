@@ -17,137 +17,215 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-        <androidx.appcompat.widget.Toolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:clipToPadding="false"
-            android:paddingRight="15dp"
-            app:layout_scrollFlags="scroll|enterAlways">
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:clipToPadding="false"
+                android:paddingRight="15dp"
+                app:layout_scrollFlags="scroll|enterAlways">
 
-            <ImageView
-                android:id="@+id/imageView"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                app:layout_anchor="@+id/appbar"
-                app:layout_anchorGravity="start|top"
-                app:srcCompat="@drawable/ic_lined_notepad_notes" />
+                <ImageView
+                    android:id="@+id/imageView"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    app:layout_anchor="@+id/appbar"
+                    app:layout_anchorGravity="start|top"
+                    app:srcCompat="@drawable/ic_lined_notepad_notes" />
 
-            <TextView
-                android:id="@+id/appTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:text="@string/app_name"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/appTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="@string/app_name"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
 
-            <ImageButton
-                android:id="@+id/menuButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="right"
-                android:layout_marginRight="15dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="menu"
-                android:src="@drawable/ic_menu_multimedia_bars" />
-        </androidx.appcompat.widget.Toolbar>
+                <ImageButton
+                    android:id="@+id/menuButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="right"
+                    android:layout_marginRight="15dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="menu"
+                    android:src="@drawable/ic_menu_multimedia_bars" />
+            </androidx.appcompat.widget.Toolbar>
 
-        <LinearLayout
-            android:id="@+id/tabsContainer"
-            android:layout_width="match_parent"
-            android:layout_height="40dp"
-            android:orientation="horizontal"
-            android:background="#EADDFF"
-            android:padding="4dp"
-            android:gravity="center_vertical">
-
-        <LinearLayout
-            android:id="@+id/toggleContainer"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:orientation="horizontal"
-            android:background="@drawable/toggle_background"
-            android:padding="2dp">
-
-            <FrameLayout
-                android:layout_width="120dp"
-                android:layout_height="match_parent">
-
-                <View
-                    android:id="@+id/toggleIndicator"
-                    android:layout_width="60dp"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/toggle_item_active" />
+            <!-- Панель вкладок -->
+            <LinearLayout
+                android:id="@+id/tabsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:background="#F8BBD0"
+                android:padding="4dp"
+                android:gravity="center_vertical">
 
                 <LinearLayout
-                    android:layout_width="match_parent"
+                    android:id="@+id/toggleContainer"
+                    android:layout_width="wrap_content"
                     android:layout_height="match_parent"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:background="@drawable/toggle_background"
+                    android:padding="2dp">
 
-                    <Button
-                        android:id="@+id/notesTab"
-                        android:layout_width="60dp"
-                        android:layout_height="match_parent"
-                        android:text="Notes"
-                        android:textSize="12sp"
-                        android:textColor="@android:color/black"
-                        android:background="@android:color/transparent"
-                        android:padding="0dp" />
+                    <FrameLayout
+                        android:layout_width="120dp"
+                        android:layout_height="match_parent">
 
-                    <Button
-                        android:id="@+id/foldersTab"
-                        android:layout_width="60dp"
-                        android:layout_height="match_parent"
-                        android:text="Folders"
-                        android:textSize="12sp"
-                        android:textColor="@android:color/black"
-                        android:background="@android:color/transparent"
-                        android:padding="0dp" />
+                        <View
+                            android:id="@+id/toggleIndicator"
+                            android:layout_width="60dp"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/toggle_item_active" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/notesTab"
+                                android:layout_width="60dp"
+                                android:layout_height="match_parent"
+                                android:text="Notes"
+                                android:textSize="12sp"
+                                android:textColor="@android:color/black"
+                                android:background="@android:color/transparent"
+                                android:padding="0dp" />
+
+                            <Button
+                                android:id="@+id/foldersTab"
+                                android:layout_width="60dp"
+                                android:layout_height="match_parent"
+                                android:text="Folders"
+                                android:textSize="12sp"
+                                android:textColor="@android:color/black"
+                                android:background="@android:color/transparent"
+                                android:padding="0dp" />
+                        </LinearLayout>
+                    </FrameLayout>
                 </LinearLayout>
-            </FrameLayout>
-        </LinearLayout>
 
-        <EditText
-            android:id="@+id/searchInput"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
+                <EditText
+                    android:id="@+id/searchInput"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:hint="Search"
+                    android:textSize="12sp"
+                    android:padding="4dp"
+                    android:background="@drawable/edit_text_background"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:singleLine="true"
+                    android:imeOptions="actionDone" />
+
+                <ImageButton
+                    android:id="@+id/imageButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:src="@drawable/ic_filter"
+                    android:contentDescription="Filter button"
+                    android:background="@null"
+                    android:padding="8dp" />
+            </LinearLayout>
+
+            <!-- Панель множественного выбора -->
+            <LinearLayout
+                android:id="@+id/selection_header"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:background="#F8BBD0"
+                android:padding="4dp"
+                android:gravity="center_vertical"
+                android:visibility="gone">
+
+                <ImageButton
+                    android:id="@+id/selection_back_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    android:contentDescription="Back"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:padding="8dp" />
+
+                <TextView
+                    android:id="@+id/selection_count"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="Выбрано: 0"
+                    android:textSize="14sp"
+                    android:gravity="center" />
+            </LinearLayout>
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/fragment_container"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:hint="Search"
-            android:textSize="12sp"
-            android:padding="4dp"
-            android:background="@drawable/edit_text_background"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:singleLine="true"
-            android:imeOptions="actionDone" />
+            tools:ignore="MissingConstraints" />
 
-        <ImageButton
-            android:id="@+id/imageButton"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:src="@drawable/ic_filter"
-            android:contentDescription="Filter button"
-            android:background="@null"
-            android:padding="8dp" />
+        <!-- Панель множественного выбора (нижняя) -->
+        <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:id="@+id/selection_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:background="#F8BBD0"
+            android:visibility="gone">
+
+            <ImageButton
+                android:id="@+id/action_pin"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_lock_lock"
+                android:contentDescription="Pin"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageButton
+                android:id="@+id/action_share"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_share"
+                android:contentDescription="Share"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageButton
+                android:id="@+id/action_edit"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_edit"
+                android:contentDescription="Edit/Move"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+
+            <ImageButton
+                android:id="@+id/action_delete"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:src="@android:drawable/ic_menu_delete"
+                android:contentDescription="Delete"
+                android:background="?attr/selectableItemBackgroundBorderless" />
+        </LinearLayout>
     </LinearLayout>
-</com.google.android.material.appbar.AppBarLayout>
 
-<androidx.fragment.app.FragmentContainerView
-android:id="@+id/fragment_container"
-android:layout_width="match_parent"
-android:layout_height="0dp"
-android:layout_weight="1"
-tools:ignore="MissingConstraints" />
-    </LinearLayout>
-
-<com.google.android.material.floatingactionbutton.FloatingActionButton
-android:id="@+id/add_btn"
-android:layout_width="wrap_content"
-android:layout_height="wrap_content"
-android:layout_gravity="bottom|end"
-android:layout_marginRight="16dp"
-android:layout_marginBottom="50dp"
-android:contentDescription="Add button"
-android:src="@android:drawable/ic_input_add" />
-    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/add_btn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginRight="16dp"
+        android:layout_marginBottom="50dp"
+        android:contentDescription="Add button"
+        android:src="@android:drawable/ic_input_add" />
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
