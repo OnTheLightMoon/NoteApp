@@ -10,9 +10,15 @@
     <LinearLayout
         android:id="@+id/folder_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:orientation="horizontal"
         android:padding="12dp">
+
+        <CheckBox
+            android:id="@+id/folder_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
 
         <ImageView
             android:id="@+id/folder_icon"

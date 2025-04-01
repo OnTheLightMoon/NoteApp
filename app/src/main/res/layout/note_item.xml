@@ -8,11 +8,18 @@
     card_view:cardCornerRadius="8dp">
 
     <LinearLayout
+        android:id="@+id/note_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="64dp"
         android:orientation="horizontal"
         android:padding="12dp"
         android:background="@drawable/item_background">
+
+        <CheckBox
+            android:id="@+id/note_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
 
         <View
             android:id="@+id/color_indicator"
