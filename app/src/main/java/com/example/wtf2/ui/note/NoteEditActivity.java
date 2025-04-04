@@ -51,7 +51,7 @@ public class NoteEditActivity extends AppCompatActivity {
         ImageButton saveButton = findViewById(R.id.save_note_btn);
         ImageButton backButton = findViewById(R.id.back_button);
 
-        folderAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new ArrayList<>());
+        folderAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, new ArrayList<String>());
         folderAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         folderSpinner.setAdapter(folderAdapter);
 

@@ -5,6 +5,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -42,6 +43,16 @@ public class NotesFragment extends Fragment {
         notesAdapter = new NotesAdapter(viewModel);
         recyclerView.setAdapter(notesAdapter);
 
+        if (recyclerView == null) {
+            Log.e("NotesFragment", "RecyclerView is null!");
+            return view;
+        }
+
+        TextView emptyView = view.findViewById(R.id.empty_notes_view);
+        if (emptyView == null) {
+            Log.e("NotesFragment", "empty_notes_view not found in layout!");
+        }
+
         Bundle args = getArguments();
         Long folderId = null;
         if (args != null) {
@@ -57,16 +68,30 @@ public class NotesFragment extends Fragment {
             }
         }
         viewModel.loadNotes(folderId);
-
         viewModel.loadFolders();
 
         viewModel.getNotes().observe(getViewLifecycleOwner(), notes -> {
             Log.d("NotesFragment", "Received notes update: " + notes.size() + " items");
             notesAdapter.setNotes(notes != null ? notes : new ArrayList<>());
+            notesAdapter.notifyDataSetChanged();
+            recyclerView.setVisibility(View.VISIBLE);
+            if (notes.isEmpty()) {
+                if (emptyView != null) {
+                    emptyView.setVisibility(View.VISIBLE);
+                    emptyView.setText("Нет заметок в этой папке");
+                    Log.d("NotesFragment", "Showing empty view");
+                }
+            } else {
+                if (emptyView != null) {
+                    emptyView.setVisibility(View.GONE);
+                    Log.d("NotesFragment", "Hiding empty view");
+                }
+            }
+            Log.d("NotesFragment", "RecyclerView visibility: " + recyclerView.getVisibility());
         });
 
         viewModel.getFolders().observe(getViewLifecycleOwner(), folders -> {
-            Map<Long, String> folderIdToColor = new HashMap<>(); // Изменяем с Integer на Long
+            Map<Long, String> folderIdToColor = new HashMap<>();
             for (Folder folder : folders) {
                 folderIdToColor.put(folder.getId(), folder.getColor());
             }

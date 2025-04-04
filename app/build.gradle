@@ -59,4 +59,20 @@ dependencies {
     annotationProcessor 'androidx.room:room-compiler:2.6.1'
     // Добавляем зависимость для coreLibraryDesugaring
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.2'
+    // Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+}
+dependencies {
+    // Google Play Services для авторизации
+    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+
+    // Google API Client для Android
+    implementation('com.google.api-client:google-api-client-android:2.2.0') {
+        exclude group: 'org.apache.httpcomponents'
+    }
+
+    // Google Drive API
+    implementation('com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0') {
+        exclude group: 'org.apache.httpcomponents'
+    }
 }

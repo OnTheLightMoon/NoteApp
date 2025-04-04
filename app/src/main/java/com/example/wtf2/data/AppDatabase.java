@@ -21,7 +21,7 @@ import java.util.concurrent.Executors;
 
 @Database(entities = {Note.class, Folder.class}, version = 2, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
-    private static volatile AppDatabase INSTANCE;
+    public static volatile AppDatabase INSTANCE;
     private static volatile boolean isInitialized = false;
 
     public abstract NoteDao noteDao();
@@ -33,7 +33,7 @@ public abstract class AppDatabase extends RoomDatabase {
                 if (INSTANCE == null) {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
                                     AppDatabase.class, "notes_database")
-                            .fallbackToDestructiveMigration()
+                            .fallbackToDestructiveMigration() // Очищает базу при несовпадении версий (для разработки)
                             .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                             .addCallback(new RoomDatabase.Callback() {
                                 @Override
@@ -44,6 +44,11 @@ public abstract class AppDatabase extends RoomDatabase {
                                         populateTestData(database);
                                         isInitialized = true;
                                     });
+                                }
+                                @Override
+                                public void onOpen(@NonNull SupportSQLiteDatabase db) {
+                                    super.onOpen(db);
+                                    isInitialized = true; // Устанавливаем флаг при открытии
                                 }
                             })
                             .build();

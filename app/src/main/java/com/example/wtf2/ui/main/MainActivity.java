@@ -20,12 +20,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.wtf2.ColorSpinnerAdapter;
@@ -34,10 +37,19 @@ import com.example.wtf2.data.AppDatabase;
 import com.example.wtf2.data.model.Folder;
 import com.example.wtf2.data.model.Note;
 import com.example.wtf2.ui.note.NoteEditActivity;
+import com.example.wtf2.util.GoogleDriveHelper;
 import com.example.wtf2.viewmodel.MainViewModel;
+import com.google.android.gms.auth.api.signin.GoogleSignIn;
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
+import com.google.android.gms.auth.api.signin.GoogleSignInClient;
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.Scope;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
+import com.google.api.services.drive.DriveScopes;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -58,6 +70,10 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton actionPinButton;
     private ImageButton actionEditMoveButton;
     private DrawerLayout drawerLayout;
+    private GoogleSignInClient googleSignInClient;
+    private ActivityResultLauncher<Intent> signInLauncher;
+    private NavigationView navigationView;
+    private GoogleDriveHelper driveHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,19 +98,57 @@ public class MainActivity extends AppCompatActivity {
         actionPinButton = findViewById(R.id.action_pin);
         actionEditMoveButton = findViewById(R.id.action_edit);
         drawerLayout = findViewById(R.id.drawer_layout);
+        navigationView = findViewById(R.id.nav_view);
+        // Инициализация GoogleDriveHelper
+        driveHelper = new GoogleDriveHelper(this);
 
-        NavigationView navigationView = findViewById(R.id.nav_view);
+        // Инициализация Google Sign-In
+        GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestScopes(new Scope(DriveScopes.DRIVE_FILE))
+                .build();
+        googleSignInClient = GoogleSignIn.getClient(this, gso);
+
+        // Лаунчер для обработки результата авторизации
+        signInLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK) {
+                        Intent data = result.getData();
+                        try {
+                            GoogleSignInAccount account = GoogleSignIn.getSignedInAccountFromIntent(data).getResult(ApiException.class);
+                            handleSignInResult(account);
+                        } catch (ApiException e) {
+                            Log.w("MainActivity", "Google Sign-In failed", e);
+                            Toast.makeText(this, "Ошибка авторизации", Toast.LENGTH_SHORT).show();
+                            updateNavigationMenu();
+                        }
+                    }
+                });
+
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawerLayout, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
         findViewById(R.id.menuButton).setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.END));
+
+        // Обновляем меню при открытии
+        updateNavigationMenu();
+        // Обновляем обработчик меню (без изменений, просто для полноты)
         navigationView.setNavigationItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.nav_notes) {
                 viewModel.setCurrentTab(0);
             } else if (itemId == R.id.nav_folders) {
                 viewModel.setCurrentTab(1);
+            } else if (itemId == R.id.nav_sign_in) {
+                signIn();
+            } else if (itemId == R.id.nav_sign_out) {
+                signOut();
+            } else if (itemId == R.id.nav_upload_to_drive) {
+                syncNotesWithDrive();
+            } else if (itemId == R.id.nav_download_from_drive) {
+                downloadFromDrive();
             } else if (itemId == R.id.nav_settings) {
                 Toast.makeText(this, "Настройки пока не реализованы", Toast.LENGTH_SHORT).show();
             }
@@ -159,29 +213,30 @@ public class MainActivity extends AppCompatActivity {
             tabsContainer.setVisibility(isSelectionMode ? View.GONE : View.VISIBLE);
             selectionHeader.setVisibility(isSelectionMode ? View.VISIBLE : View.GONE);
             selectionPanel.setVisibility(isSelectionMode ? View.VISIBLE : View.GONE);
+            Log.d("MainActivity", "Forced fragment container update, isSelectionMode=" + isSelectionMode);
+            if (!isSelectionMode) {
+                refreshCurrentFragment();
+            }
         });
 
         viewModel.getSelectedCount().observe(this, count -> {
             selectionCount.setText("Выбрано: " + count);
-            actionEditMoveButton.setImageResource(count > 1 ? android.R.drawable.ic_menu_upload : android.R.drawable.ic_menu_edit);
+            // Убираем смену иконки, фиксируем иконку перемещения
+            actionEditMoveButton.setImageResource(android.R.drawable.ic_menu_upload);
         });
 
-        // Обновляем логику FAB
         fab.setOnClickListener(v -> {
             if (!viewModel.getIsSelectionMode().getValue()) {
                 int currentTab = viewModel.getCurrentTab().getValue();
                 boolean isInFolder = viewModel.getIsInFolder().getValue() != null && viewModel.getIsInFolder().getValue();
 
                 if (currentTab == 0 || (currentTab == 1 && isInFolder)) {
-                    // Создаём заметку
                     Intent intent = new Intent(this, NoteEditActivity.class);
                     if (isInFolder) {
-                        // Передаём текущий folderId, чтобы спиннер выбрал эту папку
                         intent.putExtra("FOLDER_ID", viewModel.getCurrentFolderId().getValue());
                     }
                     startActivity(intent);
                 } else {
-                    // Создаём папку
                     showFolderDialog(null);
                 }
             }
@@ -240,24 +295,22 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.action_share).setOnClickListener(v -> Toast.makeText(this, "Поделиться пока не реализовано", Toast.LENGTH_SHORT).show());
         findViewById(R.id.action_delete).setOnClickListener(v -> viewModel.deleteSelectedItems());
         actionEditMoveButton.setOnClickListener(v -> {
-            if (viewModel.getCurrentTab().getValue() == 0) {
+            if (viewModel.getCurrentTab().getValue() == 0) { // Заметки
                 List<Note> selectedNotes = viewModel.getSelectedNotes();
-                if (selectedNotes.size() == 1) {
-                    Intent intent = new Intent(this, NoteEditActivity.class);
-                    intent.putExtra("NOTE_ID", selectedNotes.get(0).getId());
-                    startActivity(intent);
-                } else if (selectedNotes.size() > 1) {
+                if (!selectedNotes.isEmpty()) {
                     showMoveNotesDialog();
                 }
-            } else {
+            } else { // Папки
                 List<Folder> selectedFolders = viewModel.getSelectedFolders();
                 if (selectedFolders.size() == 1) {
                     showFolderDialog(selectedFolders.get(0));
+                    // Выходим из режима выбора после открытия диалога редактирования папки
+                    viewModel.exitSelectionMode();
                 } else {
                     Toast.makeText(this, "Выберите только одну папку для редактирования", Toast.LENGTH_SHORT).show();
                 }
             }
-            viewModel.exitSelectionMode();
+            Log.d("MainActivity", "Fragment container visibility: " + findViewById(R.id.fragment_container).getVisibility());
         });
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -265,6 +318,10 @@ public class MainActivity extends AppCompatActivity {
             public void handleOnBackPressed() {
                 handleBackPress();
             }
+        });
+
+        findViewById(R.id.action_delete).setOnClickListener(v -> {
+            viewModel.deleteSelectedItems();
         });
     }
 
@@ -275,25 +332,52 @@ public class MainActivity extends AppCompatActivity {
         boolean isInFolder = viewModel.getIsInFolder().getValue() != null && viewModel.getIsInFolder().getValue();
 
         if (currentTab == 0) {
-            // Вкладка "Заметки"
             if (isInFolder) {
                 viewModel.loadNotes(viewModel.getCurrentFolderId().getValue());
             } else {
                 viewModel.loadNotes(null);
             }
         } else if (currentTab == 1 && isInFolder) {
-            // Вкладка "Папки" и мы внутри папки
             viewModel.loadNotes(viewModel.getCurrentFolderId().getValue());
         }
-        // Если мы на вкладке "Папки" и не внутри папки, обновляем список папок
         if (currentTab == 1 && !isInFolder) {
             viewModel.loadFolders();
+        }
+        updateNavigationMenu();
+    }
+
+    private void signIn() {
+        Intent signInIntent = googleSignInClient.getSignInIntent();
+        signInLauncher.launch(signInIntent);
+    }
+
+    private void signOut() {
+        googleSignInClient.signOut().addOnCompleteListener(this, task -> {
+            Toast.makeText(this, "Вы вышли из аккаунта", Toast.LENGTH_SHORT).show();
+            updateNavigationMenu();
+        });
+    }
+
+    private void handleSignInResult(GoogleSignInAccount account) {
+        if (account != null) {
+            Toast.makeText(this, "Авторизация успешна: " + account.getEmail(), Toast.LENGTH_SHORT).show();
+            updateNavigationMenu();
+        }
+    }
+
+    private void updateNavigationMenu() {
+        GoogleSignInAccount account = GoogleSignIn.getLastSignedInAccount(this);
+        navigationView.getMenu().clear();
+        if (account == null) {
+            navigationView.inflateMenu(R.menu.nav_menu_unauthorized);
+        } else {
+            navigationView.inflateMenu(R.menu.nav_menu_authorized);
         }
     }
 
     private void handleBackPress() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START);
+        if (drawerLayout.isDrawerOpen(GravityCompat.END)) {
+            drawerLayout.closeDrawer(GravityCompat.END);
             Log.d("MainActivity", "Closed drawer on back press");
             return;
         }
@@ -366,27 +450,47 @@ public class MainActivity extends AppCompatActivity {
         }
 
         builder.setView(dialogView)
-                .setPositiveButton(folder != null ? "Сохранить" : "Создать", (dialog, which) -> {
-                    String folderName = folderNameInput.getText().toString().trim();
-                    String selectedColor = colorValues.get(colorSpinner.getSelectedItemPosition());
-                    if (!folderName.isEmpty() && !folderName.equals("Неотсортированные")) {
-                        Folder newFolder = folder != null ? folder : new Folder(folderName);
-                        newFolder.setName(folderName);
-                        newFolder.setColor(selectedColor);
-                        new Thread(() -> {
-                            if (newFolder.getId() == 0) {
-                                AppDatabase.getInstance(this).folderDao().insertFolder(newFolder);
-                            } else {
-                                AppDatabase.getInstance(this).folderDao().updateFolder(newFolder);
-                            }
-                            viewModel.loadFolders();
-                        }).start();
-                    } else if (folderName.equals("Неотсортированные")) {
-                        Toast.makeText(this, "Имя 'Неотсортированные' зарезервировано", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("Отмена", null)
-                .show();
+                .setPositiveButton(folder != null ? "Сохранить" : "Создать", null)
+                .setNegativeButton("Отмена", null);
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String folderName = folderNameInput.getText().toString().trim();
+            String selectedColor = colorValues.get(colorSpinner.getSelectedItemPosition());
+            List<String> existingFolderNames = viewModel.getFolderNames();
+
+            if (folderName.isEmpty()) {
+                Toast.makeText(this, "Введите имя папки", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (folderName.equals("Неотсортированные")) {
+                Toast.makeText(this, "Имя 'Неотсортированные' зарезервировано", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (existingFolderNames.contains(folderName) && (folder == null || !folder.getName().equals(folderName))) {
+                Toast.makeText(this, "Папка с именем '" + folderName + "' уже существует", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Folder newFolder = folder != null ? folder : new Folder(folderName);
+            newFolder.setName(folderName);
+            newFolder.setColor(selectedColor);
+            new Thread(() -> {
+                if (newFolder.getId() == 0) {
+                    AppDatabase.getInstance(this).folderDao().insertFolder(newFolder);
+                } else {
+                    AppDatabase.getInstance(this).folderDao().updateFolder(newFolder);
+                }
+                viewModel.loadFolders();
+                runOnUiThread(() -> {
+                    // Обновляем фрагмент после сохранения
+                    refreshCurrentFragment();
+                });
+            }).start();
+            dialog.dismiss();
+        });
     }
 
     private void showMoveNotesDialog() {
@@ -403,5 +507,46 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("Отмена", null)
                 .show();
+    }
+
+    private void syncNotesWithDrive() {
+        new Thread(() -> {
+            try {
+                AppDatabase db = AppDatabase.getInstance(this);
+                db.close();
+                driveHelper.syncDatabaseToDrive();
+                runOnUiThread(() -> Toast.makeText(this, "Данные загружены на Google Drive", Toast.LENGTH_SHORT).show());
+                AppDatabase.getInstance(this); // Переоткрываем базу
+            } catch (IOException e) {
+                e.printStackTrace();
+                runOnUiThread(() -> Toast.makeText(this, "Ошибка загрузки: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    private void downloadFromDrive() {
+        new Thread(() -> {
+            try {
+                driveHelper.downloadDatabaseFromDrive();
+                runOnUiThread(() -> {
+                    viewModel.loadFolders(); // Загружаем папки
+                    viewModel.loadNotes(null); // Загружаем заметки
+                    // Тост добавляем здесь, когда данные готовы
+                    Toast.makeText(this, "Данные загружены с Google Drive", Toast.LENGTH_SHORT).show();
+                });
+            } catch (IOException e) {
+                e.printStackTrace();
+                runOnUiThread(() -> Toast.makeText(this, "Ошибка загрузки: " + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    public void refreshCurrentFragment() {
+        int currentTab = viewModel.getCurrentTab().getValue() != null ? viewModel.getCurrentTab().getValue() : 0;
+        Fragment selectedFragment = currentTab == 0 ? new NotesFragment() : new FoldersFragment();
+        FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
+        transaction.replace(R.id.fragment_container, selectedFragment);
+        transaction.commit();
+        Log.d("MainActivity", "Refreshed current fragment: " + selectedFragment.getClass().getSimpleName());
     }
 }

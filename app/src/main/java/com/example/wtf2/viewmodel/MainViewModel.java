@@ -1,15 +1,20 @@
 package com.example.wtf2.viewmodel;
 
 import android.app.Application;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.example.wtf2.R;
 import com.example.wtf2.data.AppDatabase;
 import com.example.wtf2.data.model.Folder;
 import com.example.wtf2.data.model.Note;
+import com.example.wtf2.ui.main.MainActivity;
+import com.example.wtf2.ui.main.NotesFragment;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -103,8 +108,12 @@ public class MainViewModel extends AndroidViewModel {
         currentFolderId.setValue(folderId);
     }
 
-    public void loadNotes(Long folderId) { // Изменяем с Integer на Long
+    public void loadNotes(Long folderId) {
         new Thread(() -> {
+            AppDatabase db = AppDatabase.getInstance(getApplication());
+            if (!db.isOpen()) {
+                db.getOpenHelper().getWritableDatabase();
+            }
             List<Note> notes = folderId != null
                     ? db.noteDao().getNotesByFolderId(folderId)
                     : db.noteDao().getAllNotes();
@@ -118,6 +127,10 @@ public class MainViewModel extends AndroidViewModel {
 
     public void loadFolders() {
         new Thread(() -> {
+            AppDatabase db = AppDatabase.getInstance(getApplication());
+            if (!db.isOpen()) {
+                db.getOpenHelper().getWritableDatabase();
+            }
             List<Folder> folders = db.folderDao().getAllFolders();
             for (Folder folder : folders) {
                 folder.setNoteCount(db.noteDao().getNotesByFolderId(folder.getId()).size());
@@ -179,6 +192,7 @@ public class MainViewModel extends AndroidViewModel {
         selectedNotes.clear();
         selectedFolders.clear();
         selectedCount.postValue(0);
+        // Не сбрасываем currentFolderId, чтобы сохранить контекст
     }
 
     public void updateSelectionCount(int count) {
@@ -242,11 +256,25 @@ public class MainViewModel extends AndroidViewModel {
 
     public void deleteSelectedItems() {
         new Thread(() -> {
+            AppDatabase db = AppDatabase.getInstance(getApplication());
+            if (!db.isOpen()) {
+                db.getOpenHelper().getWritableDatabase();
+            }
             if (currentTab.getValue() == 0) { // Notes
                 db.noteDao().deleteNotes(selectedNotes);
-                loadNotes(currentFolderId.getValue());
+                List<Note> updatedNotes = currentFolderId.getValue() != null
+                        ? db.noteDao().getNotesByFolderId(currentFolderId.getValue())
+                        : db.noteDao().getAllNotes();
+                updatedNotes.sort(Comparator.comparing(Note::isPinned).reversed()
+                        .thenComparing(Note::getModifiedDate, Comparator.reverseOrder()));
+                allNotes = updatedNotes;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    notesLiveData.setValue(allNotes);
+                    Log.d("MainViewModel", "Deleted notes and updated list with " + updatedNotes.size() + " items");
+                    exitSelectionMode();
+                    // Убираем прямой вызов refreshCurrentFragment()
+                });
             } else { // Folders
-                // Удаляем заметки, связанные с удаляемыми папками
                 for (Folder folder : selectedFolders) {
                     if (folder.getName().equals("Неотсортированные")) {
                         continue;
@@ -254,30 +282,43 @@ public class MainViewModel extends AndroidViewModel {
                     List<Note> notesInFolder = db.noteDao().getNotesByFolderId(folder.getId());
                     if (!notesInFolder.isEmpty()) {
                         db.noteDao().deleteNotes(notesInFolder);
-                        Log.d("MainViewModel", "Deleted " + notesInFolder.size() + " notes from folder: " + folder.getName());
                     }
                 }
-                // Удаляем сами папки (кроме "Неотсортированные")
                 List<Folder> foldersToDelete = selectedFolders.stream()
                         .filter(folder -> !folder.getName().equals("Неотсортированные"))
                         .collect(Collectors.toList());
                 if (!foldersToDelete.isEmpty()) {
                     db.folderDao().deleteFolders(foldersToDelete);
-                    Log.d("MainViewModel", "Deleted " + foldersToDelete.size() + " folders");
                 }
-                loadFolders();
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    loadFolders();
+                    exitSelectionMode();
+                    // Убираем прямой вызов refreshCurrentFragment()
+                });
             }
-            exitSelectionMode();
         }).start();
     }
 
-    public void moveNotes(List<Note> notes, long folderId) { // Изменяем с int на long
+    public void moveNotes(List<Note> notes, long folderId) {
         new Thread(() -> {
             for (Note note : notes) {
                 note.setFolderId(folderId);
                 db.noteDao().updateNote(note);
             }
-            loadNotes(currentFolderId.getValue());
+            // Загружаем заметки в зависимости от текущего состояния
+            Long currentId = currentFolderId.getValue();
+            List<Note> updatedNotes = currentId != null && currentId != 0
+                    ? db.noteDao().getNotesByFolderId(currentId)
+                    : db.noteDao().getAllNotes();
+            updatedNotes.sort(Comparator.comparing(Note::isPinned).reversed()
+                    .thenComparing(Note::getModifiedDate, Comparator.reverseOrder()));
+            allNotes = updatedNotes;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                notesLiveData.setValue(allNotes);
+                Log.d("MainViewModel", "Moved notes and updated list with " + updatedNotes.size() + " items");
+                // Выход из режима выбора после перемещения
+                exitSelectionMode();
+            });
         }).start();
     }
 

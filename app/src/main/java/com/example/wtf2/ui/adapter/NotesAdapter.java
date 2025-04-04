@@ -1,9 +1,12 @@
 package com.example.wtf2.ui.adapter;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.content.Intent;
 import android.graphics.Color;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,6 +40,7 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
 
     public void setNotes(List<Note> notes) {
         this.notes = notes;
+        Log.d("NotesAdapter", "Set notes: " + notes.size() + " items, notes = " + notes.toString());
         notifyDataSetChanged();
     }
 
@@ -129,5 +133,43 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
             colorAnimation.addUpdateListener(animator -> container.setBackgroundColor((int) animator.getAnimatedValue()));
             colorAnimation.start();
         }
+    }
+
+    // NotesAdapter.java
+    public void removeNoteWithAnimation(Note note, Runnable onComplete) {
+        int position = notes.indexOf(note);
+        if (position != -1) {
+            ValueAnimator fadeOut = ValueAnimator.ofFloat(1f, 0f);
+            fadeOut.setDuration(300); // Анимация 300 мс
+            fadeOut.addUpdateListener(animation -> {
+                float alpha = (float) animation.getAnimatedValue();
+                NoteViewHolder holder = (NoteViewHolder) recyclerView.findViewHolderForAdapterPosition(position);
+                if (holder != null) {
+                    holder.itemView.setAlpha(alpha);
+                }
+            });
+            fadeOut.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    notes.remove(position);
+                    notifyItemRemoved(position);
+                    notifyItemRangeChanged(position, notes.size());
+                    if (onComplete != null) {
+                        onComplete.run(); // Вызываем удаление из базы после анимации
+                    }
+                }
+            });
+            fadeOut.start();
+        } else if (onComplete != null) {
+            onComplete.run(); // Если заметка не найдена, сразу выполняем действие
+        }
+    }
+
+    private RecyclerView recyclerView;
+
+    @Override
+    public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onAttachedToRecyclerView(recyclerView);
+        this.recyclerView = recyclerView;
     }
 }
