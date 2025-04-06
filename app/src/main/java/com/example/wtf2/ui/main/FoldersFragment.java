@@ -45,12 +45,22 @@ public class FoldersFragment extends Fragment {
 
         setupObservers();
 
-        // Папки уже загружены в MainViewModel при инициализации, но можем перезагрузить при необходимости
-        if (viewModel.getFolders().getValue() == null || viewModel.getFolders().getValue().isEmpty()) {
-            viewModel.loadFolders();
-        }
+        // Обновляем список папок при открытии фрагмента
+        viewModel.loadFolders();
+        Log.d(TAG, "Requested folders update on fragment creation");
 
         return view;
+    }
+
+    /**
+     * Вызывается, когда фрагмент становится видимым.
+     * Повторно обновляет список папок для актуальности данных.
+     */
+    @Override
+    public void onResume() {
+        super.onResume();
+        viewModel.loadFolders();
+        Log.d(TAG, "Requested folders update on fragment resume");
     }
 
     /**
