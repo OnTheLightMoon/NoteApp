@@ -165,9 +165,7 @@ public class MainActivity extends AppCompatActivity {
         updateNavigationMenu();
         navigationView.setNavigationItemSelectedListener(item -> {
             int itemId = item.getItemId();
-            if (itemId == R.id.nav_notes) viewModel.setCurrentTab(TAB_NOTES);
-            else if (itemId == R.id.nav_folders) viewModel.setCurrentTab(TAB_FOLDERS);
-            else if (itemId == R.id.nav_sign_in) signIn();
+            if (itemId == R.id.nav_sign_in) signIn();
             else if (itemId == R.id.nav_sign_out) signOut();
             else if (itemId == R.id.nav_upload_to_drive) syncNotesWithDrive();
             else if (itemId == R.id.nav_download_from_drive) downloadFromDrive();
