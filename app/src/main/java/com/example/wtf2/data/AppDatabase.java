@@ -17,38 +17,60 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-@Database(entities = {Note.class, Folder.class}, version = 2, exportSchema = false)
+/**
+ * Абстрактный класс базы данных Room для хранения заметок и папок.
+ */
+@Database(entities = {Note.class, Folder.class}, version = 3, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
-    public static volatile AppDatabase INSTANCE;
+    private static final String DATABASE_NAME = "notes_database";
+    public static final int DATABASE_VERSION = 2;
+    private static volatile AppDatabase INSTANCE;
     private static volatile boolean isInitialized = false;
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
 
+    /**
+     * Предоставляет доступ к DAO для заметок.
+     */
+    @NonNull
     public abstract NoteDao noteDao();
+
+    /**
+     * Предоставляет доступ к DAO для папок.
+     */
+    @NonNull
     public abstract FolderDao folderDao();
 
-    public static AppDatabase getInstance(Context context) {
+    /**
+     * Получает или создает экземпляр базы данных.
+     * @param context Контекст приложения
+     * @return Экземпляр базы данных
+     */
+    public static AppDatabase getInstance(@NonNull Context context) {
         if (INSTANCE == null) {
             synchronized (AppDatabase.class) {
                 if (INSTANCE == null) {
                     INSTANCE = Room.databaseBuilder(context.getApplicationContext(),
-                                    AppDatabase.class, "notes_database")
-                            .fallbackToDestructiveMigration() // Очищает базу при несовпадении версий (для разработки)
+                                    AppDatabase.class, DATABASE_NAME)
+                            .fallbackToDestructiveMigration() // TODO: Убрать в продакшене
                             .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                             .addCallback(new RoomDatabase.Callback() {
                                 @Override
                                 public void onCreate(@NonNull SupportSQLiteDatabase db) {
                                     super.onCreate(db);
-                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                    executor.execute(() -> {
                                         AppDatabase database = getInstance(context);
-                                        populateTestData(database);
+                                        populateTestData(database); // Заполнение тестовыми данными
                                         isInitialized = true;
                                     });
                                 }
+
                                 @Override
                                 public void onOpen(@NonNull SupportSQLiteDatabase db) {
                                     super.onOpen(db);
-                                    isInitialized = true; // Устанавливаем флаг при открытии
+                                    isInitialized = true;
                                 }
                             })
                             .build();
@@ -58,11 +80,28 @@ public abstract class AppDatabase extends RoomDatabase {
         return INSTANCE;
     }
 
+    /**
+     * Проверяет, инициализирована ли база данных.
+     */
     public static boolean isInitialized() {
         return isInitialized;
     }
 
-    private static void populateTestData(AppDatabase database) {
+    /**
+     * Сбрасывает экземпляр базы данных (для использования при синхронизации с Google Drive).
+     */
+    public static void resetInstance() {
+        synchronized (AppDatabase.class) {
+            INSTANCE = null;
+            isInitialized = false;
+        }
+    }
+
+    /**
+     * Заполняет базу тестовыми данными при первом создании.
+     * @param database Экземпляр базы данных
+     */
+    private static void populateTestData(@NonNull AppDatabase database) {
         Random random = new Random();
         String[] folderNames = {"Неотсортированные", "Работа", "Личное", "Идеи", "Покупки"};
         String[] colors = {"#FFFFFF", "#FFCDD2", "#C8E6C9", "#BBDEFB", "#FFECB3"};
@@ -74,7 +113,6 @@ public abstract class AppDatabase extends RoomDatabase {
                 "Купить молоко, хлеб, яйца."
         };
 
-        // Создаем папки и сохраняем их ID
         Folder[] folders = new Folder[folderNames.length];
         for (int i = 0; i < folderNames.length; i++) {
             Folder folder = new Folder(folderNames[i]);
@@ -85,20 +123,23 @@ public abstract class AppDatabase extends RoomDatabase {
             folders[i] = folder;
         }
 
-        // Создаем заметки с привязкой по folderId
         for (int i = 0; i < noteTitles.length; i++) {
             int folderIndex = random.nextInt(folders.length);
             Note note = new Note(
                     noteTitles[i],
                     noteContents[i],
                     getCurrentDate(),
-                    folders[folderIndex].getId() // Теперь folderId — это long
+                    folders[folderIndex].getId()
             );
             note.setPinned(random.nextBoolean());
             database.noteDao().insert(note);
         }
     }
 
+    /**
+     * Возвращает текущую дату и время в формате "dd.MM.yyyy HH:mm".
+     */
+    @NonNull
     private static String getCurrentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
         return sdf.format(new Date());

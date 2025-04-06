@@ -1,21 +1,35 @@
 package com.example.wtf2.data.model;
 
+import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
+/**
+ * Модель данных для заметки, хранимой в базе данных.
+ */
 @Entity(tableName = "notes")
 public class Note {
     @PrimaryKey(autoGenerate = true)
     private int id;
+
+    @NonNull
     private String title;
+
+    @NonNull
     private String content;
-    private long folderId; // Изменяем с int на long
+
+    private long folderId;
+
+    @NonNull
     private String modifiedDate;
+
     private boolean isPinned;
 
+    /**
+     * Конструктор по умолчанию для Room.
+     */
     public Note() {
-        this.id = 0;
         this.title = "";
         this.content = "";
         this.folderId = 0;
@@ -23,19 +37,11 @@ public class Note {
         this.isPinned = false;
     }
 
+    /**
+     * Конструктор для создания новой заметки.
+     */
     @Ignore
-    public Note(int id, String title, String content, long folderId, String modifiedDate, boolean isPinned) {
-        this.id = id;
-        this.title = title;
-        this.content = content;
-        this.folderId = folderId;
-        this.modifiedDate = modifiedDate;
-        this.isPinned = isPinned;
-    }
-
-    @Ignore
-    public Note(String title, String content, String modifiedDate, long folderId) {
-        this.id = 0;
+    public Note(@NonNull String title, @NonNull String content, @NonNull String modifiedDate, long folderId) {
         this.title = title;
         this.content = content;
         this.modifiedDate = modifiedDate;
@@ -45,14 +51,22 @@ public class Note {
 
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
+
+    @NonNull
     public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
+    public void setTitle(@NonNull String title) { this.title = title != null ? title : ""; }
+
+    @NonNull
     public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
-    public long getFolderId() { return folderId; } // Изменяем с int на long
-    public void setFolderId(long folderId) { this.folderId = folderId; } // Изменяем с int на long
+    public void setContent(@NonNull String content) { this.content = content != null ? content : ""; }
+
+    public long getFolderId() { return folderId; }
+    public void setFolderId(long folderId) { this.folderId = folderId; }
+
+    @NonNull
     public String getModifiedDate() { return modifiedDate; }
-    public void setModifiedDate(String modifiedDate) { this.modifiedDate = modifiedDate; }
+    public void setModifiedDate(@NonNull String modifiedDate) { this.modifiedDate = modifiedDate != null ? modifiedDate : ""; }
+
     public boolean isPinned() { return isPinned; }
     public void setPinned(boolean pinned) { isPinned = pinned; }
 }

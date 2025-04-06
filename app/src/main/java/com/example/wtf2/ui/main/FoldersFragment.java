@@ -14,14 +14,16 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.wtf2.R;
-import com.example.wtf2.data.model.Folder;
 import com.example.wtf2.ui.adapter.FoldersAdapter;
 import com.example.wtf2.viewmodel.MainViewModel;
 
 import java.util.ArrayList;
 
+/**
+ * Фрагмент для отображения списка папок.
+ */
 public class FoldersFragment extends Fragment {
-
+    private static final String TAG = "FoldersFragment";
     private RecyclerView recyclerView;
     private FoldersAdapter folderAdapter;
     private MainViewModel viewModel;
@@ -30,35 +32,51 @@ public class FoldersFragment extends Fragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_folders_list, container, false);
+        Log.d(TAG, "Creating FoldersFragment view");
 
         // Инициализация ViewModel
         viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
 
+        // Настройка RecyclerView
         recyclerView = view.findViewById(R.id.folders_list);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-
         folderAdapter = new FoldersAdapter(viewModel);
         recyclerView.setAdapter(folderAdapter);
 
-        // Загружаем папки при создании фрагмента
-        viewModel.loadFolders();
+        setupObservers();
 
-        // Наблюдение за списком папок
-        viewModel.getFolders().observe(getViewLifecycleOwner(), folders -> {
-            folderAdapter.setFolders(folders != null ? folders : new ArrayList<>());
-            Log.d("FoldersFragment", "Updated folders list with " + folders.size() + " items");
-        });
-
-        // Наблюдение за режимом множественного выбора
-        viewModel.getIsSelectionMode().observe(getViewLifecycleOwner(), isSelectionMode -> {
-            if (!isSelectionMode) {
-                folderAdapter.notifyDataSetChanged();
-            }
-        });
+        // Папки уже загружены в MainViewModel при инициализации, но можем перезагрузить при необходимости
+        if (viewModel.getFolders().getValue() == null || viewModel.getFolders().getValue().isEmpty()) {
+            viewModel.loadFolders();
+        }
 
         return view;
     }
 
+    /**
+     * Настраивает наблюдателей за данными из ViewModel.
+     */
+    private void setupObservers() {
+        // Наблюдение за списком папок
+        viewModel.getFolders().observe(getViewLifecycleOwner(), folders -> {
+            folderAdapter.setFolders(folders != null ? folders : new ArrayList<>());
+            Log.d(TAG, "Folders updated: " + folders.size() + " items");
+            // Уведомляем адаптер об изменении данных (можно заменить на DiffUtil для оптимизации)
+            folderAdapter.notifyDataSetChanged();
+        });
+
+        // Наблюдение за режимом выбора
+        viewModel.getIsSelectionMode().observe(getViewLifecycleOwner(), isSelectionMode -> {
+            if (!isSelectionMode) {
+                folderAdapter.notifyDataSetChanged();
+                Log.d(TAG, "Selection mode exited, adapter refreshed");
+            }
+        });
+    }
+
+    /**
+     * Возвращает адаптер для доступа к нему извне (например, для тестов).
+     */
     public FoldersAdapter getFolderAdapter() {
         return folderAdapter;
     }

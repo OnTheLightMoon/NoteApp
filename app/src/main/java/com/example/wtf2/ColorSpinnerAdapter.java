@@ -2,6 +2,7 @@ package com.example.wtf2;
 
 import android.content.Context;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -13,11 +14,23 @@ import androidx.core.content.ContextCompat;
 
 import java.util.List;
 
+/**
+ * Адаптер для Spinner, отображающий цвета с их названиями и цветными квадратами.
+ */
 public class ColorSpinnerAdapter extends ArrayAdapter<String> {
-    private final List<String> colors;
-    private final String[] colorNames;
+    private static final int COLOR_SQUARE_SIZE = 24; // Размер цветного квадрата в dp
+    private static final int DRAWABLE_PADDING = 8;   // Отступ между квадратом и текстом в dp
 
-    public ColorSpinnerAdapter(@NonNull Context context, List<String> colors, String[] colorNames) {
+    private final List<String> colors;    // Список цветовых кодов (например, "#FFFFFF")
+    private final String[] colorNames;    // Названия цветов
+
+    /**
+     * Конструктор адаптера.
+     * @param context Контекст приложения
+     * @param colors Список цветовых кодов
+     * @param colorNames Массив названий цветов
+     */
+    public ColorSpinnerAdapter(@NonNull Context context, @NonNull List<String> colors, @NonNull String[] colorNames) {
         super(context, android.R.layout.simple_spinner_item, colors);
         this.colors = colors;
         this.colorNames = colorNames;
@@ -35,23 +48,49 @@ public class ColorSpinnerAdapter extends ArrayAdapter<String> {
         return createView(position, convertView, parent);
     }
 
-    private View createView(int position, View convertView, ViewGroup parent) {
+    /**
+     * Создает или обновляет представление для элемента Spinner.
+     * @param position Позиция элемента
+     * @param convertView Переиспользуемое представление
+     * @param parent Родительский контейнер
+     * @return Готовое представление
+     */
+    private View createView(int position, View convertView, @NonNull ViewGroup parent) {
+        ViewHolder holder;
         if (convertView == null) {
-            convertView = LayoutInflater.from(getContext()).inflate(android.R.layout.simple_spinner_dropdown_item, parent, false);
+            convertView = LayoutInflater.from(getContext()).inflate(
+                    android.R.layout.simple_spinner_dropdown_item, parent, false);
+            holder = new ViewHolder();
+            holder.textView = convertView.findViewById(android.R.id.text1);
+            convertView.setTag(holder);
+        } else {
+            holder = (ViewHolder) convertView.getTag();
         }
 
-        TextView textView = convertView.findViewById(android.R.id.text1);
-        textView.setText(colorNames[position]);
-        textView.setTextColor(ContextCompat.getColor(getContext(), android.R.color.black));
-        textView.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0); // Убираем стандартные иконки
+        // Проверка на корректность данных
+        if (position < 0 || position >= colors.size() || position >= colorNames.length) {
+            holder.textView.setText("Ошибка данных");
+            return convertView;
+        }
 
-        // Добавляем цветной квадрат слева
-        View colorSquare = new View(getContext());
-        colorSquare.setLayoutParams(new ViewGroup.LayoutParams(24, 24));
-        colorSquare.setBackgroundColor(Color.parseColor(colors.get(position)));
-        textView.setCompoundDrawablesWithIntrinsicBounds(colorSquare.getBackground(), null, null, null);
-        textView.setCompoundDrawablePadding(8);
+        // Настройка текста и цвета
+        holder.textView.setText(colorNames[position]);
+        holder.textView.setTextColor(ContextCompat.getColor(getContext(), android.R.color.black));
+        holder.textView.setCompoundDrawablesWithIntrinsicBounds(0, 0, 0, 0); // Очистка старых drawable
+
+        // Создание цветного квадрата
+        ColorDrawable colorSquare = new ColorDrawable(Color.parseColor(colors.get(position)));
+        colorSquare.setBounds(0, 0, COLOR_SQUARE_SIZE, COLOR_SQUARE_SIZE);
+        holder.textView.setCompoundDrawables(colorSquare, null, null, null);
+        holder.textView.setCompoundDrawablePadding(DRAWABLE_PADDING);
 
         return convertView;
+    }
+
+    /**
+     * ViewHolder для хранения элементов представления.
+     */
+    private static class ViewHolder {
+        TextView textView;
     }
 }

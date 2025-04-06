@@ -22,93 +22,119 @@ import com.example.wtf2.viewmodel.MainViewModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+/**
+ * Фрагмент для отображения списка заметок.
+ * Поддерживает отображение заметок из конкретной папки или всех заметок.
+ */
 public class NotesFragment extends Fragment {
-
+    private static final String TAG = "NotesFragment";
     private RecyclerView recyclerView;
     private NotesAdapter notesAdapter;
     private MainViewModel viewModel;
+    private TextView emptyView;
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_notes_list, container, false);
+        Log.d(TAG, "Creating NotesFragment view");
 
+        // Инициализация ViewModel
         viewModel = new ViewModelProvider(requireActivity()).get(MainViewModel.class);
 
+        // Настройка RecyclerView
         recyclerView = view.findViewById(R.id.notes_list);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-
         notesAdapter = new NotesAdapter(viewModel);
         recyclerView.setAdapter(notesAdapter);
 
-        if (recyclerView == null) {
-            Log.e("NotesFragment", "RecyclerView is null!");
-            return view;
-        }
+        // Настройка пустого состояния
+        emptyView = view.findViewById(R.id.empty_notes_view);
 
-        TextView emptyView = view.findViewById(R.id.empty_notes_view);
-        if (emptyView == null) {
-            Log.e("NotesFragment", "empty_notes_view not found in layout!");
-        }
-
-        Bundle args = getArguments();
-        Long folderId = null;
-        if (args != null) {
-            String folderName = args.getString("folder_name");
-            if (folderName != null) {
-                for (Folder folder : viewModel.getFolders().getValue()) {
-                    if (folder.getName().equals(folderName)) {
-                        folderId = folder.getId();
-                        viewModel.setCurrentFolderId(folderId);
-                        break;
-                    }
-                }
-            }
-        }
-        viewModel.loadNotes(folderId);
-        viewModel.loadFolders();
-
-        viewModel.getNotes().observe(getViewLifecycleOwner(), notes -> {
-            Log.d("NotesFragment", "Received notes update: " + notes.size() + " items");
-            notesAdapter.setNotes(notes != null ? notes : new ArrayList<>());
-            notesAdapter.notifyDataSetChanged();
-            recyclerView.setVisibility(View.VISIBLE);
-            if (notes.isEmpty()) {
-                if (emptyView != null) {
-                    emptyView.setVisibility(View.VISIBLE);
-                    emptyView.setText("Нет заметок в этой папке");
-                    Log.d("NotesFragment", "Showing empty view");
-                }
-            } else {
-                if (emptyView != null) {
-                    emptyView.setVisibility(View.GONE);
-                    Log.d("NotesFragment", "Hiding empty view");
-                }
-            }
-            Log.d("NotesFragment", "RecyclerView visibility: " + recyclerView.getVisibility());
-        });
-
-        viewModel.getFolders().observe(getViewLifecycleOwner(), folders -> {
-            Map<Long, String> folderIdToColor = new HashMap<>();
-            for (Folder folder : folders) {
-                folderIdToColor.put(folder.getId(), folder.getColor());
-            }
-            Log.d("NotesFragment", "Received folder colors update: " + folderIdToColor.size() + " items");
-            notesAdapter.setFolderColors(folderIdToColor);
-        });
-
-        viewModel.getIsSelectionMode().observe(getViewLifecycleOwner(), isSelectionMode -> {
-            if (!isSelectionMode) {
-                notesAdapter.notifyDataSetChanged();
-            }
-        });
+        setupObservers();
+        handleArguments(savedInstanceState);
 
         return view;
     }
 
+    /**
+     * Настраивает наблюдателей за данными из ViewModel.
+     */
+    private void setupObservers() {
+        // Наблюдение за списком заметок
+        viewModel.getNotes().observe(getViewLifecycleOwner(), notes -> {
+            Log.d(TAG, "Notes updated: " + notes.size() + " items");
+            notesAdapter.setNotes(notes != null ? notes : new ArrayList<>());
+            notesAdapter.notifyDataSetChanged(); // TODO: Заменить на DiffUtil для оптимизации
+            updateEmptyViewVisibility(notes.isEmpty());
+        });
+
+        // Наблюдение за цветами папок
+        viewModel.getFolderColors().observe(getViewLifecycleOwner(), folderColors -> {
+            Map<Long, String> folderIdToColor = new HashMap<>();
+            for (Folder folder : viewModel.getFolders().getValue()) {
+                folderIdToColor.put(folder.getId(), folder.getColor());
+            }
+            Log.d(TAG, "Folder colors updated: " + folderIdToColor.size() + " entries");
+            notesAdapter.setFolderColors(folderIdToColor);
+        });
+
+        // Наблюдение за режимом выбора
+        viewModel.getIsSelectionMode().observe(getViewLifecycleOwner(), isSelectionMode -> {
+            if (!isSelectionMode) {
+                notesAdapter.notifyDataSetChanged();
+                Log.d(TAG, "Selection mode exited, adapter refreshed");
+            }
+        });
+    }
+
+    /**
+     * Обрабатывает аргументы фрагмента (например, имя папки для фильтрации заметок).
+     */
+    private void handleArguments(Bundle savedInstanceState) {
+        Bundle args = getArguments() != null ? getArguments() : savedInstanceState;
+        if (args != null && args.containsKey("folder_name")) {
+            String folderName = args.getString("folder_name");
+            List<Folder> folders = viewModel.getFolders().getValue();
+            if (folders != null) {
+                for (Folder folder : folders) {
+                    if (folder.getName().equals(folderName)) {
+                        viewModel.setCurrentFolderId(folder.getId());
+                        viewModel.loadNotes(folder.getId());
+                        break;
+                    }
+                }
+            }
+        } else if (viewModel.getIsInFolder().getValue() != null && viewModel.getIsInFolder().getValue()) {
+            viewModel.loadNotes(viewModel.getCurrentFolderId().getValue());
+        } else {
+            viewModel.loadNotes(null);
+        }
+    }
+
+    /**
+     * Обновляет видимость текста "Нет заметок" в зависимости от состояния списка.
+     */
+    private void updateEmptyViewVisibility(boolean isEmpty) {
+        recyclerView.setVisibility(isEmpty ? View.GONE : View.VISIBLE);
+        emptyView.setVisibility(isEmpty ? View.VISIBLE : View.GONE);
+        if (isEmpty) emptyView.setText("Нет заметок в этой папке");
+        Log.d(TAG, "Empty view visibility: " + (isEmpty ? "shown" : "hidden"));
+    }
+
     public NotesAdapter getNotesAdapter() {
         return notesAdapter;
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Сохраняем текущие аргументы, если они есть
+        if (getArguments() != null) {
+            outState.putAll(getArguments());
+        }
     }
 }
